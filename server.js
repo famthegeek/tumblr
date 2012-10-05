@@ -1,4 +1,6 @@
 var	hogan = require('hogan.js'),
+	os = require("os"),
+	sep = require("path").sep
 	fs = require('fs');
 var express = require('express');
 var app = express();
@@ -201,9 +203,9 @@ app.get("*", function (req, res) {
 });
 app.listen(3000);
 
-var appconfig = JSON.parse(fs.readFileSync(dirName(thefile)+"/"+"test.json")+"" );
+var appconfig = JSON.parse(fs.readFileSync(dirName(thefile)+sep+"test.json")+"" );
 
-if(!fs.existsSync("/tmp/" + appconfig.tumblr + "-postcache.json")){
+if(!fs.existsSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")){
 	var http = require("http");
 	tumblrCache = "";
 	http.get("http://api.tumblr.com/v2/blog/"+appconfig.tumblr+"/posts/?api_key=R6L6HL6PmZT56qubaxqwJjwvf9M7gVA80uCxNNZEvy7q4nkxnw", function(res){
@@ -211,13 +213,14 @@ if(!fs.existsSync("/tmp/" + appconfig.tumblr + "-postcache.json")){
 			tumblrCache += chunk;
 		});
 		res.on("end", function(){
-			fs.writeFileSync("/tmp/"+ appconfig.tumblr  + "-postcache.json", tumblrCache);
+			fs.writeFileSync(os.tmpDir() + sep + appconfig.tumblr  + "-postcache.json", tumblrCache);
 			tumblrCache = JSON.parse(tumblrCache);
 			console.log("Data OK");
 		});
 	});
 } else{
-	tumblrCache = JSON.parse(fs.readFileSync("/tmp/" + appconfig.tumblr + "-postcache.json")+"" );
+	tumblrCache = JSON.parse(fs.readFileSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")+"" );
+	console.log("Data OK (cached)");
 }
 
 console.log('Server running at http://127.0.0.1:3000/');
