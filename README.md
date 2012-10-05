@@ -14,7 +14,7 @@ Requirements:
 * NPM
 * Tumblr themes you want to preview
 
-You need test.json in that which looks like:
+You need test.json in the directory of your `template.html` file which looks like:
 
 	{
 		"tumblr" : "blogwithtestdata.tumblr.com",

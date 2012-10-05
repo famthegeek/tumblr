@@ -104,8 +104,8 @@ function tumblrToMustache(i){
 
 	// basic post information
 	i = i.replaceAll("{PostType}", "{{ post_type }}");
-	i = i.replaceAll("{Permalink}", "{{ post_url }}");
-	i = i.replaceAll("{PostNotes}", "{{ post_notes }}");
+	i = i.replaceAll("{Permalink}", "{{ permalink }}");
+	i = i.replaceAll("{PostNotes}", "{{& post_notes }}");
 	i = i.replaceAll("{NoteCount}", "{{ note_count }}");
 	i = i.replaceAll("{Body}", "{{& body }}");
 	i = i.replaceAll("{TagsAsClasses}", "{{ tags_classes }}");
@@ -184,6 +184,8 @@ function sortPosts(posts){
 			});
 			post.Tphotos = photos;
 		}
+		
+		post['permalink'] = post.post_url.substr(post.post_url.indexOf("/post"));
 	});
 	return posts;
 }
@@ -193,6 +195,21 @@ console.log("Theme we are using is " + thefile);
 
 app.get("/assets/:file", function(req, res){
 	res.sendfile(dirName(thefile) + "/" + req.params.file);
+});
+
+app.get("/post/:post", function(req, res){
+	posts = sortPosts(tumblrCache.response.posts);
+	posts.forEach(function(p){
+		if(p.id == req.params.post){
+			post = p;
+		}
+	});	
+	
+	tumblrPage({
+		"permalinkPage" : true,
+		"post_notes" : fs.readFileSync("fakeNotes.txt"),
+		"posts" : [ post ]
+	}, res);
 });
 
 app.get("*", function (req, res) {
