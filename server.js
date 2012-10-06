@@ -271,11 +271,15 @@ if(!fs.existsSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")){
 	console.log("Data OK (cached)");
 }
 
-fs.watch(thefile, function (event, filename) {
-	if(event == "change"){
-		console.log("Theme updated");
-		io.sockets.emit("new", {});
-	}
-});
+function watch(){
+	fs.watch(thefile, function (event, filename) {
+		if(event == "change"){
+			console.log("Theme updated");
+			io.sockets.emit("new", {});
+			watch();
+		}
+	});
+}
+watch();
 
 console.log('Server running at http://127.0.0.1:3000/');
