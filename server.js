@@ -1,9 +1,14 @@
 var	hogan = require('hogan.js'),
 	os = require("os"),
+	moment = require("moment"),
+	http = require("http"),
 	sep = require("path").sep
 	fs = require('fs');
 var express = require('express');
 var app = express();
+
+var server = http.createServer(app);
+var io = require('socket.io').listen(server, {"log level": 0});
 
 var args = process.argv.splice(2);
 
@@ -103,7 +108,7 @@ function tumblrToMustache(i){
 	i = i.replaceAll("{/block:Answer}", "{{/ is_answer }}");
 
 	// basic post information
-	i = i.replaceAll("{PostType}", "{{ post_type }}");
+	i = i.replaceAll("{PostType}", "{{ type }}");
 	i = i.replaceAll("{Permalink}", "{{ permalink }}");
 	i = i.replaceAll("{PostNotes}", "{{& post_notes }}");
 	i = i.replaceAll("{NoteCount}", "{{ note_count }}");
@@ -143,6 +148,20 @@ function tumblrToMustache(i){
 	i = i.replaceAll("{PhotoURL-100}", "{{& 100 }}");
 	i = i.replaceAll("{PhotoURL-75sq}", "{{& 75 }}");
 
+	i = i.replaceAll("{DayOfMonth}", "{{ date.day }}");
+	i = i.replaceAll("{MonthNumber}", "{{ date.month }}");
+	i = i.replaceAll("{Year}", "{{ date.year }}");
+
+	// source
+	i = i.replaceAll("{SourceTitle}", "{{ source_title }}");
+	i = i.replaceAll("{SourceURL}", "{{ source_url }}");
+	i = i.replaceAll("{block:ContentSource}", "{{# source_url }}");
+	i = i.replaceAll("{/block:ContentSource}", "{{/ source_url }}");
+	i = i.replaceAll("{block:NoSourceLogo}", "{{# source_url }}");
+	i = i.replaceAll("{/block:NoSourceLogo}", "{{/ source_url }}");
+	i = i.replaceAll("{block:SourceLogo}", "{{# source_logo }}");
+	i = i.replaceAll("{/block:SourceLogo}", "{{/ source_logo }}");
+
 	return i;
 }
 
@@ -153,9 +172,9 @@ function tumblrPage(args, res){
 			"title" : tumblrCache.response.blog.title,
 			"Description" : tumblrCache.response.blog.description,
 			"ask_enabled" : tumblrCache.response.blog.ask,
-			"has_pages" : (appconfig.pages.length == 0),
+			"has_pages" : (appconfig.pages.length != 0),
 			"pages" : appconfig.pages
-		})));
+		})) + '<script src="/socket.io/socket.io.js"></script><script>var socket = io.connect("http://localhost:3000");socket.on("new", function (data) {console.log("new");document.location.href=document.location;});</script>');
 	});
 }
 function dirName(i){
@@ -167,6 +186,14 @@ function dirName(i){
 function sortPosts(posts){
 	posts.forEach(function(post){
 		post['is_' + post.type] = true;
+		time = moment.unix(post.timestamp);
+		post['time_ago'] = time.fromNow();
+		post['date'] = {
+			"day" : time.date(),
+			"month" : time.month(),
+			"year" : time.year()
+		};
+		post['tags_classes'] = post.tags.join(" ");
 
 		if(post.player){
 			players = {};
@@ -180,6 +207,10 @@ function sortPosts(posts){
 				photo.alt_sizes.forEach(function(size){
 					p[size.width] = size.url;
 				});
+				
+				if(p['250'] == undefined) p['250'] = p['100']
+				if(p['400'] == undefined) p['400'] = p['250']
+				if(p['500'] == undefined) p['500'] = p['400']
 				photos.append(p);
 			});
 			post.Tphotos = photos;
@@ -197,13 +228,13 @@ app.get("/assets/:file", function(req, res){
 	res.sendfile(dirName(thefile) + "/" + req.params.file);
 });
 
-app.get("/post/:post", function(req, res){
+app.get("/post/:post*", function(req, res){
 	posts = sortPosts(tumblrCache.response.posts);
 	posts.forEach(function(p){
 		if(p.id == req.params.post){
 			post = p;
 		}
-	});	
+	});
 	
 	tumblrPage({
 		"permalinkPage" : true,
@@ -218,7 +249,7 @@ app.get("*", function (req, res) {
 		"posts" : sortPosts(tumblrCache.response.posts)
 	}, res);
 });
-app.listen(3000);
+server.listen(3000);
 
 var appconfig = JSON.parse(fs.readFileSync(dirName(thefile)+sep+"test.json")+"" );
 
@@ -239,5 +270,12 @@ if(!fs.existsSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")){
 	tumblrCache = JSON.parse(fs.readFileSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")+"" );
 	console.log("Data OK (cached)");
 }
+
+fs.watch(thefile, function (event, filename) {
+	if(event == "change"){
+		console.log("Theme updated");
+		io.sockets.emit("new", {});
+	}
+});
 
 console.log('Server running at http://127.0.0.1:3000/');
