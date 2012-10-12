@@ -2,7 +2,8 @@ var	hogan = require('hogan.js'),
 	os = require("os"),
 	moment = require("moment"),
 	http = require("http"),
-	sep = require("path").sep
+	sep = require("path").sep,
+	libxmljs = require("libxmljs"),
 	fs = require('fs');
 var express = require('express');
 var app = express();
@@ -11,12 +12,17 @@ var server = http.createServer(app);
 var io = require('socket.io').listen(server, {"log level": 0});
 
 var args = process.argv.splice(2);
+var Tinjection = '<script src="/socket.io/socket.io.js"></script><script>var socket = io.connect("http://localhost:3000");socket.on("new", function (data) {console.log("new");document.location.href=document.location;});</script>';
 
 Object.prototype.merge = function(nA){
 	for(i in nA){
 		this[i] = nA[i];
 	}
 	return this;
+};
+Object.prototype.getD = function(key, def){
+	if(this[key] != undefined) return this[key];
+	return def;
 };
 Array.prototype.append = function(i){ this[this.length] = i; };
 
@@ -162,19 +168,46 @@ function tumblrToMustache(i){
 	i = i.replaceAll("{block:SourceLogo}", "{{# source_logo }}");
 	i = i.replaceAll("{/block:SourceLogo}", "{{/ source_logo }}");
 
+	try{
+		xml = libxmljs.parseHtmlString(i);
+		metas = xml.find("//meta");
+		metas.forEach(function(meta){
+			n = meta.attr("name").value();
+			
+			if(n.indexOf("image:") == 0){ In = n.substr( "image:".length).replaceAll(" ", "") + "Image"; }
+			else{ In = n.substring( n.indexOf(":")+1 ).replaceAll(" ", ""); }
+			v = appconfig.getD("config", {}).getD(In, false) || meta.attr("content").value();
+			
+			if(v == "" || v == "0"){ // null
+				i = i.replaceAll("{block:If" + In + "}", "{{# sfifhjwefbwejbfuiwebj }}"); // p.s I did just hit the keyboard
+				i = i.replaceAll("{/block:If" + In + "}", "{{/ sfifhjwefbwejbfuiwebj }}");
+				i = i.replaceAll("{block:IfNot" + In + "}", "");
+				i = i.replaceAll("{/block:IfNot" + In + "}", "");
+			} else{
+				i = i.replaceAll("{block:If" + In + "}", "");
+				i = i.replaceAll("{/block:If" + In + "}", "");
+				i = i.replaceAll("{block:IfNot" + In + "}", "{{# sfifhjwefbwejbfuiwebj }}");
+				i = i.replaceAll("{/block:IfNot" + In + "}", "{{/ sfifhjwefbwejbfuiwebj }}");
+				i = i.replaceAll("{" + n + "}", v);
+			}
+		});
+	} catch(e){ console.log("meta tags will not work: " + e); }
+
 	return i;
 }
 
 // Reads template, outputs Tumblr Blog
 function tumblrPage(args, res){
 	fs.readFile(thefile, function(err, data){
-		res.send(hogan.compile( tumblrToMustache( data + '' ) ).render(args.merge({
-			"title" : tumblrCache.response.blog.title,
-			"Description" : tumblrCache.response.blog.description,
-			"ask_enabled" : tumblrCache.response.blog.ask,
-			"has_pages" : (appconfig.pages.length != 0),
-			"pages" : appconfig.pages
-		})) + '<script src="/socket.io/socket.io.js"></script><script>var socket = io.connect("http://localhost:3000");socket.on("new", function (data) {console.log("new");document.location.href=document.location;});</script>');
+		try{
+			res.send(hogan.compile( tumblrToMustache( data + '' ) ).render(args.merge({
+				"title" : tumblrCache.response.blog.title,
+				"Description" : tumblrCache.response.blog.description,
+				"ask_enabled" : tumblrCache.response.blog.ask,
+				"has_pages" : (appconfig.pages.length != 0),
+				"pages" : appconfig.pages
+			})) + Tinjection);
+		} catch(e){ res.end("ouch! that did not work ;__;" + Tinjection); }
 	});
 }
 function dirName(i){
@@ -251,7 +284,11 @@ app.get("*", function (req, res) {
 });
 server.listen(3000);
 
-var appconfig = JSON.parse(fs.readFileSync(dirName(thefile)+sep+"test.json")+"" );
+var appconfig = 0;
+function load_appconfig(){
+	appconfig = JSON.parse(fs.readFileSync(dirName(thefile)+sep+"test.json")+"" );
+}
+load_appconfig();
 
 if(!fs.existsSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")){
 	var http = require("http");
@@ -271,15 +308,34 @@ if(!fs.existsSync(os.tmpDir() + sep + appconfig.tumblr + "-postcache.json")){
 	console.log("Data OK (cached)");
 }
 
+function send_change(){
+	console.log("Theme updated");
+	load_appconfig();
+	io.sockets.emit("new", {});
+	watch();
+};
+
+watchT = undefined;
+
 function watch(){
 	fs.watch(thefile, function (event, filename) {
 		if(event == "change"){
-			console.log("Theme updated");
-			io.sockets.emit("new", {});
-			watch();
+			if(watchT != undefined) clearTimeout(watchT);
+			watchT = setTimeout(send_change, 400);
 		}
 	});
 }
 watch();
 
+app.configure(function(){
+	app.use(express.bodyParser());
+	app.use(express.methodOverride());
+	app.use(app.router);
+	app.use(function(err, req, res, next){
+		console.error(err.stack);
+		res.send(500, 'Something broke!');
+	});
+});
+
 console.log('Server running at http://127.0.0.1:3000/');
+io.sockets.emit("new", {}); // reload old clients

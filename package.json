@@ -6,6 +6,7 @@
 		"express" : ">=3.0.0rc4",
 		"hogan.js" : ">=2.0.0",
 		"moment" : ">=1.7.2",
-		"socket.io" : ">=0.9.10"
+		"socket.io" : ">=0.9.10",
+		"libxmljs" : ">=0.6.1"
 	}
 }
