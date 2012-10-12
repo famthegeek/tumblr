@@ -20,7 +20,13 @@ You need test.json in the directory of your `template.html` file which looks lik
 		"tumblr" : "blogwithtestdata.tumblr.com",
 		"pages" : [
 			{"URL":"/test", "label":"whatever"}
-		]
+		],
+		"config" : {
+			"Variable" : "Value",
+			"Yeah" : "See the",
+			"Tumblr" : "Custom theme docs like so:",
+			"Flickr username" : "johnsmithsphotos"
+		}
 	}
 
 
