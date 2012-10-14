@@ -20,7 +20,7 @@ io.sockets.on('connection', function (socket){
 });
 
 var args = process.argv.splice(2);
-var Tinjection = '<script src="/socket.io/socket.io.js"></script><script>var socket = io.connect("http://localhost:3000/?on='+ServerStarted+'");socket.on("new", function (data) {console.log("new");document.location.href=document.location;});</script>';
+var Tinjection = '<!-- ohai. this is your preview server --><script src="/socket.io/socket.io.js"></script><script>var socket = io.connect("http://localhost:3000/?on='+ServerStarted+'");socket.on("new", function (data) {console.log("new");document.location.href=document.location;});</script>';
 
 Object.prototype.merge = function(nA){
 	for(i in nA){
@@ -95,7 +95,12 @@ function tumblrToMustache(i){
 
 	i = i.replaceAll("{SearchQuery}", "{{ &search_query }}");
 	i = i.replaceAll("{block:AskEnabled}", "{{# ask_enabled }}");
+	i = i.replaceAll("{AskLabel}", "Ask me Anything");
 	i = i.replaceAll("{/block:AskEnabled}", "{{/ ask_enabled }}");
+	i = i.replaceAll("{block:SubmissionsEnabled}", "{{# submission_enabled }}");
+	i = i.replaceAll("{SubmitLabel}", "Submit");
+	i = i.replaceAll("{/block:SubmissionsEnabled}", "{{/ submission_enabled }}");
+
 
 	// Posts
 	i = i.replaceAll("{block:Posts}", "{{# posts }}");
@@ -191,6 +196,7 @@ function tumblrToMustache(i){
 				i = i.replaceAll("{/block:If" + In + "}", "{{/ sfifhjwefbwejbfuiwebj }}");
 				i = i.replaceAll("{block:IfNot" + In + "}", "");
 				i = i.replaceAll("{/block:IfNot" + In + "}", "");
+				i = i.replaceAll("{" + n + "}", "");
 			} else{
 				i = i.replaceAll("{block:If" + In + "}", "");
 				i = i.replaceAll("{/block:If" + In + "}", "");
@@ -211,11 +217,12 @@ function tumblrPage(args, res){
 			res.send(hogan.compile( tumblrToMustache( data + '' ) ).render(args.merge({
 				"title" : tumblrCache.response.blog.title,
 				"Description" : tumblrCache.response.blog.description,
-				"ask_enabled" : tumblrCache.response.blog.ask,
+				"ask_enabled" : appconfig['ask'] || tumblrCache.response.blog.ask,
+				"submission_enabled" : appconfig['submission_enabled'],
 				"has_pages" : (appconfig.pages.length != 0),
 				"pages" : appconfig.pages
 			})) + Tinjection);
-		} catch(e){ res.end("ouch! that did not work ;__;" + Tinjection); }
+		} catch(e){ console.log(e); }
 	});
 }
 function dirName(i){
@@ -267,6 +274,21 @@ console.log("Theme we are using is " + thefile);
 
 app.get("/assets/:file", function(req, res){
 	res.sendfile(dirName(thefile) + "/" + req.params.file);
+});
+
+app.get("/_/ask_iframe", function(req, res){
+	// tood
+});
+
+app.get("/ask", function (req, res) {
+	tumblrPage({
+		"permalinkPage" : true,
+		"posts" : [ {
+			"type" : "text",
+			"title" : "Ask Me Anything",
+			"body" : "todo"
+		} ]
+	}, res);
 });
 
 app.get("/post/:post*", function(req, res){
